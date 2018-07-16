@@ -6,6 +6,6 @@ ScreenVersion: 1.0
 SerialVersion: 0
 MinPlatformVersion: 0
 ProOnly: False
-Author: Miharu Tachibana
-ShortDescription: Scan for SSL vulnerabilities using similar techniques to testssl.sh.
+Author: Pattara Teerapong and Meatasit Karakate
+ShortDescription: Scan for SSL vulnerabilities using techniques from testssl.sh and a2sv.
 EntryPoint: burp-ssl-scanner.py
