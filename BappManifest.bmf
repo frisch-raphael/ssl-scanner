@@ -1,0 +1,11 @@
+Uuid: 474b3c575a1a4584aa44dfefc70f269d
+ExtensionType: 2
+Name: SSL Scanner
+RepoName: ssl-scanner
+ScreenVersion: 1.0
+SerialVersion: 0
+MinPlatformVersion: 0
+ProOnly: False
+Author: Miharu Tachibana
+ShortDescription: Scan for SSL vulnerabilities using similar techniques to testssl.sh.
+EntryPoint: burp-ssl-scanner.py
