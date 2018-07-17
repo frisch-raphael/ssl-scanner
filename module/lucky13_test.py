@@ -22,7 +22,7 @@ class Lucky13Test(Test) :
         hello2hex = hello2.createAsHex()
 
         self._result.addResult('lucky13',tryHandshake(self._host, self._port, addNecessaryExtensionToHello(modifyHelloVersion(hello1hex,version), self._host)) >= 0 or tryHandshake(self._host, self._port, addNecessaryExtensionToHello(modifyHelloVersion(hello2hex,version), self._host)) >= 0)
-        if self._result.getResult('lucky13') and self.scan_accuracy != 'minimise_false_negatives' :
+        if self._result.getResult('lucky13') and self.scan_accuracy != 'minimise_false_positives' :
             self._result.addVulnerability('lucky13')
             # for each cipher
             for cipherHex in splitCipherHexStringTLS(cbc_cipher1)+splitCipherHexStringTLS(cbc_cipher2) :
