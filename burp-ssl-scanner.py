@@ -28,6 +28,8 @@ try:
 
     import time
 
+    import json
+
     from module import *
 
 except ImportError as e:
@@ -115,6 +117,10 @@ class BurpExtender(IBurpExtender, ITab):
         self.saveButton.setEnabled(False)
         self.savePanel.add(self.saveButton)
 
+        self.clearScannedHostButton = JButton('Clear scanned host', actionPerformed=self.clearScannedHost)
+        self.savePanel.add(self.clearScannedHostButton)
+        self.savePanel.add(JLabel("Clear hosts that were scanned by active scan to enable rescanning", SwingConstants.LEFT))
+
         self._bottomPanel.add(self.savePanel, BorderLayout.PAGE_END)
 
         self._splitpane.setBottomComponent(self._bottomPanel)
@@ -123,13 +129,27 @@ class BurpExtender(IBurpExtender, ITab):
 
         callbacks.addSuiteTab(self)
         
-        print "Burp SSL Scanner loaded"
+        print "SSL Scanner tab loaded"
+
 
         self.scannerMenu = ScannerMenu(self)
         callbacks.registerContextMenuFactory(self.scannerMenu)
         print "SSL Scanner custom menu loaded"
 
-        print 'Done'
+
+        self.scannerCheck = ScannerCheck(self)
+        callbacks.registerScannerCheck(self.scannerCheck)
+        print "SSL Scanner check registered"
+
+        projectConfig = json.loads(self._callbacks.saveConfigAsJson())
+        scanAccuracy = projectConfig['scanner']['active_scanning_optimization']['scan_accuracy']
+        scanSpeed = projectConfig['scanner']['active_scanning_optimization']['scan_speed']
+
+        print(scanAccuracy, scanSpeed)
+
+        self.scannedHost = []
+
+        print 'SSL Scanner loaded'
         
     def startScan(self, ev) :
 
@@ -158,24 +178,39 @@ class BurpExtender(IBurpExtender, ITab):
             print(e)
             return
 
-    def scan(self, url):
+    def scan(self, url, usingBurpScanner=False):
 
         def setScanStatusLabel(text) :
-            SwingUtilities.invokeLater(
-                ScannerRunnable(self.scanStatusLabel.setText, 
-                                (text,)))
+            if not usingBurpScanner :
+                SwingUtilities.invokeLater(
+                    ScannerRunnable(self.scanStatusLabel.setText, 
+                                    (text,)))
                                 
         def updateResultText(text) :
-            SwingUtilities.invokeLater(
-                ScannerRunnable(self.updateText, (text, )))
+            if not usingBurpScanner :
+                SwingUtilities.invokeLater(
+                    ScannerRunnable(self.updateText, (text, )))
 
-        res = result.Result(url, self._callbacks, self._helpers, self.addToSitemapCheckbox.isSelected())
+        if usingBurpScanner :
+            res = result.Result(url, self._callbacks, self._helpers, False)
+        else :
+            res = result.Result(url, self._callbacks, self._helpers, self.addToSitemapCheckbox.isSelected())
 
         host, port = url.getHost(), url.getPort()
 
+        ### Get project configuration
+        projectConfig = json.loads(self._callbacks.saveConfigAsJson())
+        # scanAccuracy: minimise_false_negatives, normal, minimise_false_positives
+        scanAccuracy = projectConfig['scanner']['active_scanning_optimization']['scan_accuracy']
+        # scanSpeed: fast, normal, thorough
+        scanSpeed = projectConfig['scanner']['active_scanning_optimization']['scan_speed']
+
+        updateResultText('<h2>Scanning speed: %s</h2> %s' % (scanSpeed, test_details.SCANNING_SPEED_INFO[scanSpeed]))
+        updateResultText('<h2>Scanning accuracy: %s</h2> %s' % (scanAccuracy, test_details.SCANNING_ACCURACY_INFO[scanAccuracy]))
+
         try :
             setScanStatusLabel("Checking for supported SSL/TLS versions")
-            con = connection_test.ConnectionTest(res, host, port)
+            con = connection_test.ConnectionTest(res, host, port, scanSpeed, scanAccuracy)
             con.start()
             conResultText = '<hr /><br /><h3>' + res.printResult('connectable') + '</h3>' + \
                 '<ul><li>' + res.printResult('offer_ssl2') + '</li>' + \
@@ -191,12 +226,12 @@ class BurpExtender(IBurpExtender, ITab):
                 raise BaseException('Connection failed')
 
             setScanStatusLabel("Checking for supported cipher suites (This can take a long time)")
-            supportedCipher = supportedCipher_test.SupportedCipherTest(res, host, port)
+            supportedCipher = supportedCipher_test.SupportedCipherTest(res, host, port, scanSpeed, scanAccuracy)
             supportedCipher.start()
 
             
             setScanStatusLabel("Checking for Cipherlist")
-            cipher = cipher_test.CipherTest(res, host, port)
+            cipher = cipher_test.CipherTest(res, host, port, scanSpeed, scanAccuracy)
             cipher.start()
             cipherResultText = '<h3>Available ciphers:</h3>' + \
                 '<ul><li>' + res.printResult('cipher_NULL') + '</li>' + \
@@ -211,84 +246,84 @@ class BurpExtender(IBurpExtender, ITab):
             
 
             setScanStatusLabel("Checking for Heartbleed")
-            heartbleed = heartbleed_test.HeartbleedTest(res, host, port)
+            heartbleed = heartbleed_test.HeartbleedTest(res, host, port, scanSpeed, scanAccuracy)
             heartbleed.start()
             heartbleedResultText = res.printResult('heartbleed')
             updateResultText(heartbleedResultText)
             
 
             setScanStatusLabel("Checking for CCS Injection")
-            ccs = ccs_test.CCSTest(res, host, port)
+            ccs = ccs_test.CCSTest(res, host, port, scanSpeed, scanAccuracy)
             ccs.start()
             ccsResultText = res.printResult('ccs_injection')
             updateResultText(ccsResultText)
 
             
             setScanStatusLabel("Checking for TLS_FALLBACK_SCSV")
-            fallback = fallback_test.FallbackTest(res, host, port)
+            fallback = fallback_test.FallbackTest(res, host, port, scanSpeed, scanAccuracy)
             fallback.start()
             fallbackResultText = res.printResult('fallback_support')
             updateResultText(fallbackResultText)
 
 
             setScanStatusLabel("Checking for POODLE (SSLv3)")
-            poodle = poodle_test.PoodleTest(res, host, port)
+            poodle = poodle_test.PoodleTest(res, host, port, scanSpeed, scanAccuracy)
             poodle.start()
             poodleResultText = res.printResult('poodle_ssl3')
             updateResultText(poodleResultText)
             
 
             setScanStatusLabel("Checking for SWEET32")
-            sweet32 = sweet32_test.Sweet32Test(res, host, port)
+            sweet32 = sweet32_test.Sweet32Test(res, host, port, scanSpeed, scanAccuracy)
             sweet32.start()
             sweet32ResultText = res.printResult('sweet32')
             updateResultText(sweet32ResultText)
             
 
             setScanStatusLabel("Checking for DROWN")
-            drown = drown_test.DrownTest(res, host, port)
+            drown = drown_test.DrownTest(res, host, port, scanSpeed, scanAccuracy)
             drown.start()
             drownResultText = res.printResult('drown')
             updateResultText(drownResultText)
             
 
             setScanStatusLabel("Checking for FREAK")
-            freak = freak_test.FreakTest(res, host, port)
+            freak = freak_test.FreakTest(res, host, port, scanSpeed, scanAccuracy)
             freak.start()
             freakResultText = res.printResult('freak')
             updateResultText(freakResultText)
             
 
             setScanStatusLabel("Checking for LUCKY13")
-            lucky13 = lucky13_test.Lucky13Test(res, host, port)
+            lucky13 = lucky13_test.Lucky13Test(res, host, port, scanSpeed, scanAccuracy)
             lucky13.start()
             lucky13ResultText = res.printResult('lucky13')
             updateResultText(lucky13ResultText)
             
 
             setScanStatusLabel("Checking for CRIME")
-            crime = crime_test.CrimeTest(res, host, port)
+            crime = crime_test.CrimeTest(res, host, port, scanSpeed, scanAccuracy)
             crime.start()
             crimeResultText = res.printResult('crime_tls')
             updateResultText(crimeResultText)
             
 
             setScanStatusLabel("Checking for BREACH")
-            breach = breach_test.BreachTest(res, host, 443)
+            breach = breach_test.BreachTest(res, host, port, scanSpeed, scanAccuracy)
             breach.start(self._callbacks, self._helpers)
             breachResultText = res.printResult('breach')
             updateResultText(breachResultText)
 
 
             setScanStatusLabel("Checking for BEAST")
-            beast = beast_test.BeastTest(res, host, port)
+            beast = beast_test.BeastTest(res, host, port, scanSpeed, scanAccuracy)
             beast.start()
             beastResultText = res.printResult('beast')
             updateResultText(beastResultText)
 
 
             setScanStatusLabel("Checking for LOGJAM")
-            logjam = logjam_test.LogjamTest(res, host, port)
+            logjam = logjam_test.LogjamTest(res, host, port, scanSpeed, scanAccuracy)
             logjam.start()
             logjamResultText = res.printResult('logjam_export') + '<br />' + res.printResult('logjam_common') 
             updateResultText(logjamResultText)
@@ -306,26 +341,27 @@ class BurpExtender(IBurpExtender, ITab):
 
         except BaseException as e :
             print(e)
-            SwingUtilities.invokeLater(
-                ScannerRunnable(self.scanStatusLabel.setText, 
-                                ("An error occurred. Please refer to the output/errors tab for more information.",)))
+            setScanStatusLabel("An error occurred. Please refer to the output/errors tab for more information.")
             time.sleep(2)
 
-        self.scanningEvent.clear()
-        SwingUtilities.invokeLater(
-                ScannerRunnable(self.toggleButton.setEnabled, (True, ))
-        )
-        SwingUtilities.invokeLater(
-                ScannerRunnable(self.hostField.setEnabled, (True, ))
-        )
-        SwingUtilities.invokeLater(
-                ScannerRunnable(self.saveButton.setEnabled, (True, ))
-        )
-        if 'Professional' in self._callbacks.getBurpVersion()[0] :
+        if usingBurpScanner :
+            return res.getAllIssue()
+        else :
+            self.scanningEvent.clear()
             SwingUtilities.invokeLater(
-                ScannerRunnable(self.addToSitemapCheckbox.setEnabled, (True, ))
+                    ScannerRunnable(self.toggleButton.setEnabled, (True, ))
             )
-        setScanStatusLabel("Ready to scan")
+            SwingUtilities.invokeLater(
+                    ScannerRunnable(self.hostField.setEnabled, (True, ))
+            )
+            SwingUtilities.invokeLater(
+                    ScannerRunnable(self.saveButton.setEnabled, (True, ))
+            )
+            if 'Professional' in self._callbacks.getBurpVersion()[0] :
+                SwingUtilities.invokeLater(
+                    ScannerRunnable(self.addToSitemapCheckbox.setEnabled, (True, ))
+                )
+            setScanStatusLabel("Ready to scan")
         print("Finished scanning")
 
     def updateText(self, stringToAppend):
@@ -345,6 +381,12 @@ class BurpExtender(IBurpExtender, ITab):
             fw.flush()
             fw.close()
             print "Saved results to disk"
+
+    def clearScannedHost(self, event) :
+        self.scannedHost = []
+
+    def addHostToScannedList(self, host, port) :
+        self.scannedHost.append([host, port])
 
     def getTabCaption(self):
         return "SSL Scanner"
@@ -381,6 +423,42 @@ class ScannerMenu(IContextMenuFactory):
                 self.scannerInstance._callbacks.issueAlert(
                     "The selected request is null.")
 
+
+class ScannerCheck(IScannerCheck) :
+    def __init__(self, scannerInstance) :
+        self.scannerInstance = scannerInstance
+
+    def doActiveScan(self, baseReqRes, insPoint) :
+        # Get URL from request and check if the host has already been scanned by our tool
+        httpService = baseReqRes.getHttpService()
+        host, port, protocol = httpService.getHost(), httpService.getPort(), httpService.getProtocol()
+
+        print "[SSL Scanner] Do active scan: ",host,port,protocol
+        # Check if already scanned
+        for scannedHost, scannedPort in self.scannerInstance.scannedHost :
+            if scannedHost == host and scannedPort == port :
+                print "[SSL Scanner] The host has already been scanned, aborting"
+                self.scannerInstance._callbacks.issueAlert("The host %s:%d has already been scanned (Use [Clear scanned host] button to enable rescanning)" % (host, port))
+                break
+        else :
+            self.scannerInstance.addHostToScannedList(host, port)
+            self.scannerInstance._callbacks.issueAlert("Scanning %s:%d" % (host, port))
+            issues = self.scannerInstance.scan(URL(protocol, host, port, "/"), True)
+            self.scannerInstance._callbacks.issueAlert("Scan finished for %s:%d" % (host, port))
+
+            return issues
+        return None
+    
+    def doPassiveScan(self, baseReqRes) :
+        print "[SSL Scanner] Do passive scan"
+        return None
+
+    def consolidateDuplicateIssues(self, old, new) :
+        if old.getIssueName() == new.getIssueName() :
+            return 1 # Use only new issue
+        return 0 # Use both issue
+
+
 class ScannerRunnable(Runnable):
     def __init__(self, func, args):
         self.func = func
@@ -388,3 +466,4 @@ class ScannerRunnable(Runnable):
 
     def run(self):
         self.func(*self.args)
+
