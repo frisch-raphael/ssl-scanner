@@ -2,8 +2,8 @@ Uuid: 474b3c575a1a4584aa44dfefc70f269d
 ExtensionType: 2
 Name: SSL Scanner
 RepoName: ssl-scanner
-ScreenVersion: 1.1
-SerialVersion: 1
+ScreenVersion: 1.2
+SerialVersion: 2
 MinPlatformVersion: 0
 ProOnly: False
 Author: Pattara Teerapong and Meatasit Karakate
