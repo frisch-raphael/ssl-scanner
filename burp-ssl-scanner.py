@@ -107,6 +107,7 @@ class BurpExtender(IBurpExtender, ITab):
         self.textPane = JTextPane()
         self.textScrollPane = JScrollPane(self.textPane)
         self.textPane.setContentType("text/html")
+        self.textPane.putClientProperty("html.disable", None)
         self.textPane.setText(self.currentText)
         self.textPane.setEditable(False)
 
