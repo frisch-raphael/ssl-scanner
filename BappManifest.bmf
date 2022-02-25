@@ -2,10 +2,12 @@ Uuid: 474b3c575a1a4584aa44dfefc70f269d
 ExtensionType: 2
 Name: SSL Scanner
 RepoName: ssl-scanner
-ScreenVersion: 1.2
-SerialVersion: 2
+ScreenVersion: 1.2a
+SerialVersion: 4
 MinPlatformVersion: 0
 ProOnly: False
 Author: Pattara Teerapong and Meatasit Karakate
 ShortDescription: Scan for SSL vulnerabilities using techniques from testssl.sh and a2sv.
 EntryPoint: burp-ssl-scanner.py
+BuildCommand: 
+SupportedProducts: Pro, Community
